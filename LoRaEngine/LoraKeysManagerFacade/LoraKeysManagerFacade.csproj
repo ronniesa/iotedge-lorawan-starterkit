@@ -4,8 +4,16 @@
     <AzureFunctionsVersion>v2</AzureFunctionsVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="2.1.1" />
     <PackageReference Include="Microsoft.Azure.Devices" Version="1.16.1" />
-    <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="1.0.13" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="2.1.1" />
+    <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="1.0.19" />
+    <PackageReference Include="WindowsAzure.Storage" Version="9.3.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.Azure.WebSites.DataProtection">
+      <HintPath>..\..\..\.nuget\packages\microsoft.azure.websites.dataprotection\2.1.88-alpha\lib\netstandard2.0\Microsoft.Azure.WebSites.DataProtection.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <None Update="host.json">

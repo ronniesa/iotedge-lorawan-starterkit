@@ -3,11 +3,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 //
 using System.IO;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Azure.WebJobs.Host;
 using Newtonsoft.Json;
 using System;
 using Microsoft.Azure.Devices;
@@ -17,11 +17,38 @@ using System.Net;
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using System.Text;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace CreateDeviceFunction
 {
+    class HostSecrets
+    {
+        [JsonProperty(PropertyName = "masterKey")]
+        public Key MasterKey { get; set; }
+
+        [JsonProperty(PropertyName = "functionKeys")]
+        public IList<Key> FunctionKeys { get; set; }
+
+        [JsonProperty(PropertyName = "systemKeys")]
+        public IList<Key> SystemKeys { get; set; }
+    }
+
     public static class CreateEdgeDevice
     {
+        private static ServiceProvider serviceProvider;
+
+        static CreateEdgeDevice()
+        {
+            var services = new ServiceCollection();
+            services.AddDataProtection();
+            
+            serviceProvider = services.BuildServiceProvider();
+        }
+
+
         [FunctionName("CreateEdgeDevice")]
         public static async System.Threading.Tasks.Task<HttpResponseMessage> RunAsync([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)]HttpRequest req, TraceWriter log, ExecutionContext context)
         {
@@ -36,36 +63,71 @@ namespace CreateDeviceFunction
             // parse query parameter
             var queryStrings=req.GetQueryParameterDictionary();
             string deviceName = "";
-            string publishingUserName = "";
-            string publishingPassword = "";
+
 
             queryStrings.TryGetValue("deviceName", out deviceName);
-            queryStrings.TryGetValue("publishingUserName", out publishingUserName);
-            queryStrings.TryGetValue("publishingPassword", out publishingPassword);
-            Console.WriteLine("un "+ publishingUserName);
-            //Get function facade key
-            var base64Auth = Convert.ToBase64String(Encoding.Default.GetBytes($"{publishingUserName}:{publishingPassword}"));
-            var apiUrl = new Uri($"https://{Environment.GetEnvironmentVariable("WEBSITE_CONTENTSHARE")}.scm.azurewebsites.net/api");
-            var siteUrl = new Uri($"https://{Environment.GetEnvironmentVariable("WEBSITE_CONTENTSHARE")}.azurewebsites.net");
-            string JWT;
-            Console.WriteLine("api " + apiUrl);
-            using (var client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Basic {base64Auth}");
 
-                var result = client.GetAsync($"{apiUrl}/functions/admin/token").Result;
-                JWT = result.Content.ReadAsStringAsync().Result.Trim('"'); //get  JWT for call funtion key
-            }
             string facadeKey = "";
-            using (var client = new HttpClient())
+            string storageConnectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
+            Key key = null;
+            CloudStorageAccount account = CloudStorageAccount.Parse(storageConnectionString);
+            CloudBlobClient serviceClient = account.CreateCloudBlobClient();
+            // point to the function storage container holding the keys.
+           
+            var container = serviceClient.GetContainerReference("azure-webjobs-secrets");
+            await container.CreateIfNotExistsAsync();
+            BlobContinuationToken blobContinuationToken = null;
+            do
             {
-                client.DefaultRequestHeaders.Add("Authorization", "Bearer " + JWT);
-
-                string jsonResult = client.GetAsync($"{siteUrl}/admin/host/keys").Result.Content.ReadAsStringAsync().Result;
-                dynamic resObject = JsonConvert.DeserializeObject(jsonResult);
-                facadeKey = resObject.keys[0].value;
+                var results = await container.ListBlobsSegmentedAsync(null, blobContinuationToken);
+                // Get the value of the continuation token returned by the listing call.
+                blobContinuationToken = results.ContinuationToken;
+                foreach (IListBlobItem item in results.Results)
+                {
+                    Console.WriteLine(item.Uri);
+                }
+            } while (blobContinuationToken != null); // Loop while the continuation token is not null.
+            CloudBlob blob = container.GetBlobReference(Environment.GetEnvironmentVariable("WEBSITE_CONTENTSHARE") + "/host.json");
+            using (var stream = new MemoryStream())
+            {
+                await blob.DownloadToStreamAsync(stream);
+                stream.Position = 0;//resetting stream's position to 0
+                var serializer = new JsonSerializer();
+               
+                using (var sr = new StreamReader(stream))
+                {
+                    using (var jsonTextReader = new JsonTextReader(sr))
+                    {
+                        	var host = JsonConvert.DeserializeObject<HostSecrets>(File.ReadAllText(@"D:\home\data\Functions\secrets\host.json"));
+                        HostSecrets result = serializer.Deserialize<HostSecrets>(jsonTextReader);
+                        key=result.MasterKey;
+                    }
+                }
             }
 
+             var provider= Microsoft.Azure.Web.DataProtection.DataProtectionProvider.CreateAzureDataProtector();
+            var dataProtector = provider.CreateProtector("function-secrets");
+            DataProtectionKeyValueConverter converter = new DataProtectionKeyValueConverter(FileAccess.Read);
+            if (key.IsEncrypted)
+            {
+                key = converter.ReadValue(key);
+            }
+            //var protector =  _dataProtector as IPersistedDataProtector;
+            //var provider = Microsoft.Azure.Web.DataProtection.DataProtectionProvider.CreateAzureDataProtector();
+            //_dataProtector = provider.CreateProtector("function-secrets");
+            if (dataProtector != null)
+            {
+                byte[] data = WebEncoders.Base64UrlDecode(facadeKey);
+                byte[] result = dataProtector.Unprotect(data);
+               
+
+                facadeKey = Encoding.UTF8.GetString(result);
+            
+            }
+            else
+            {
+               facadeKey = dataProtector.Unprotect(facadeKey);
+            }
 
             Device edgeGatewayDevice = new Device(deviceName);
             edgeGatewayDevice.Capabilities = new DeviceCapabilities()
