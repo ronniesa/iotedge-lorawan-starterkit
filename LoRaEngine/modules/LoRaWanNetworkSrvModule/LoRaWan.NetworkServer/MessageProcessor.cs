@@ -96,27 +96,17 @@ namespace LoRaWan.NetworkServer
 
 
             Cache.TryGetValue(devAddr, out LoraDeviceInfo loraDeviceInfo);
-
-
-
             if (loraDeviceInfo == null)
             {
-
-
                 loraDeviceInfo = await LoraDeviceInfoManager.GetLoraDeviceInfoAsync(devAddr);
-
                 Logger.Log(loraDeviceInfo.DevEUI, $"processing message, device not in cache", Logger.LoggingLevel.Info);
-
                 Cache.AddToCache(devAddr, loraDeviceInfo);
 
             }
             else
             {
                 Logger.Log(loraDeviceInfo.DevEUI, $"processing message, device in cache", Logger.LoggingLevel.Info);
-
             }
-
-
 
             if (loraDeviceInfo.IsOurDevice)
             {
@@ -519,6 +509,10 @@ namespace LoRaWan.NetworkServer
                 byte[] devAddr = StringToByteArray(joinLoraDeviceInfo.DevAddr);
 
                 string appKey = joinLoraDeviceInfo.AppKey;
+
+                //update reported properties
+                joinLoraDeviceInfo.HubSender = new IoTHubSender(joinLoraDeviceInfo.DevEUI, joinLoraDeviceInfo.PrimaryKey);
+                joinLoraDeviceInfo.HubSender.UpdateReportedPropertiesOTAA(joinLoraDeviceInfo);
 
                 Array.Reverse(netId);
                 Array.Reverse(appNonce);

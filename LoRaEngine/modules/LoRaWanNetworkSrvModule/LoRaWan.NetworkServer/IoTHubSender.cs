@@ -21,14 +21,27 @@ namespace LoRaWan.NetworkServer
         private string PrimaryKey;
 
 
+        public async void UpdateReportedPropertiesOTAA(LoraDeviceInfo loraDeviceInfo)
+        {
+            TwinCollection reportedProperties = new TwinCollection();
+            TwinCollection deviceInfo = new TwinCollection();
+            deviceInfo["NwkSKey"] = loraDeviceInfo.NwkSKey;
+            deviceInfo["AppSKey"] = loraDeviceInfo.AppSKey;
+            deviceInfo["DevEUI"] = loraDeviceInfo.DevEUI;
+            deviceInfo["NetId"] = loraDeviceInfo.NetId;
+            reportedProperties["deviceInfo"] = deviceInfo;
+            await deviceClient.UpdateReportedPropertiesAsync(reportedProperties);
+           
+        }
+
         public IoTHubSender(string DevEUI, string PrimaryKey)
         {
             this.DevEUI = DevEUI;
             this.PrimaryKey = PrimaryKey;
 
             CreateDeviceClient();
-
-        }
+          
+        }   
 
         private void CreateDeviceClient()
         {

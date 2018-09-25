@@ -111,24 +111,7 @@ namespace LoRaWan.NetworkServer
                     var moduleTwin = await ioTHubModuleClient.GetTwinAsync();
                     var moduleTwinCollection = moduleTwin.Properties.Desired;
 
-                    try
-                    {
-                        LoraDeviceInfoManager.FacadeServerUrl = moduleTwinCollection["FacadeServerUrl"];
-                        Logger.Log( $"Facade function url: {LoraDeviceInfoManager.FacadeServerUrl}", Logger.LoggingLevel.Always);
-
-                    }
-                    catch (ArgumentOutOfRangeException e)
-                    {
-                        Logger.Log( "Module twin FacadeServerName not exist", Logger.LoggingLevel.Error);
-                    }
-                    try
-                    {
-                        LoraDeviceInfoManager.FacadeAuthCode = moduleTwinCollection["FacadeAuthCode"];
-                    }
-                    catch (ArgumentOutOfRangeException e)
-                    {
-                        Logger.Log( "Module twin FacadeAuthCode does not exist", Logger.LoggingLevel.Error);
-                    }
+                    
 
                     await ioTHubModuleClient.SetDesiredPropertyUpdateCallbackAsync(onDesiredPropertiesUpdate, null);
 
@@ -136,14 +119,7 @@ namespace LoRaWan.NetworkServer
 
                    
                 }
-                //todo ronnie what to do when not running as edge?
-                //running as non edge module for test and debugging
-                else
-                {              
-                    LoraDeviceInfoManager.FacadeServerUrl = "http://localhost:7071/api/";
-                    LoraDeviceInfoManager.FacadeAuthCode = "";
-                }
-
+              
 
                
                 
@@ -169,19 +145,8 @@ namespace LoRaWan.NetworkServer
         {
             try
             {
-               
-                
-
-
-
-                if (desiredProperties["FacadeServerUrl"] != null)
-                    LoraDeviceInfoManager.FacadeServerUrl = desiredProperties["FacadeServerUrl"];
-
-                if (desiredProperties["FacadeAuthCode"] != null)
-                    LoraDeviceInfoManager.FacadeAuthCode = desiredProperties["FacadeAuthCode"];
-
+                         
                 Logger.Log("Desired property changed", Logger.LoggingLevel.Info);
-
             }
             catch (AggregateException ex)
             {

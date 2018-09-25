@@ -214,7 +214,7 @@ namespace PacketManager
             devNonce = new byte[2];
             Array.Copy(inputMessage, 17, devNonce, 0, 2);
 
-            var devNonceStr = BitConverter.ToString(devNonce);
+            var devStr = BitConverter.ToString(devNonce);
 
         }
 
